@@ -81,7 +81,7 @@ struct _egl_display
   _EGLDevice *Device;
   _EGLDriver *Driver;
   EGLBoolean Initialized;
-  struct 
+  struct
   {
     EGLBoolean ForceSoftware;
     void *Platform;
