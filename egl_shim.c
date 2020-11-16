@@ -198,7 +198,7 @@ eglGetConfigAttrib(EGLDisplay dpy, EGLConfig config, EGLint attribute,
 
   init(x_dpy);
 
-  if (!XMatchVisualInfo(x_dpy,  DefaultScreen(x_dpy), 32, TrueColor, &vinfo))
+  if (!XMatchVisualInfo(x_dpy,  DefaultScreen(x_dpy), 24, TrueColor, &vinfo))
     return EGL_FALSE;
 
   *value = vinfo.visualid;
@@ -270,7 +270,7 @@ eglSwapBuffers(EGLDisplay dpy, EGLSurface surface)
                                             gbm_bo_get_width(bo),
                                             gbm_bo_get_height(bo),
                                             gbm_bo_get_stride(bo),
-                                            32,
+                                            24,
                                             gbm_bo_get_bpp(bo),
                                             gbm_bo_get_fd(bo));
 
