@@ -216,14 +216,18 @@ eglCreateWindowSurface(EGLDisplay dpy, EGLConfig config,
 
   struct dri2_egl_config *c = (struct dri2_egl_config *)config;
   EGLSurface egl_surface;
-  int width = 540;
-  int height = 960;
+  xcb_connection_t *xcb_conn = XGetXCBConnection(x_dpy);
+  xcb_get_geometry_cookie_t geomCookie = xcb_get_geometry(xcb_conn, win);
+  xcb_get_geometry_reply_t *geom = xcb_get_geometry_reply(xcb_conn,
+                                                          geomCookie, NULL);
 
   _win = win;
 
-  gbm_surface = gbm_surface_create(gbm, width, height,
+  gbm_surface = gbm_surface_create(gbm, geom->width, geom->height,
                                    c->base.NativeVisualID,
                                    GBM_BO_USE_RENDERING | GBM_BO_USE_SCANOUT);
+
+  free (geom);
 
   egl_surface = _eglCreateWindowSurface(dpy, config,
                                         (EGLNativeWindowType)gbm_surface,
@@ -279,7 +283,6 @@ eglSwapBuffers(EGLDisplay dpy, EGLSurface surface)
     gbm_bo_set_user_data(bo, pixmap_data, destroy_pixmap_data);
   }
 
-  printf("about to present\n");
   uint32_t options = XCB_PRESENT_OPTION_NONE;
   xcb_void_cookie_t cookie = xcb_present_pixmap_checked(xcb_conn,
                                                         _win,
@@ -297,12 +300,9 @@ eglSwapBuffers(EGLDisplay dpy, EGLSurface surface)
                                                         NULL); /* notifiers */
 
   if ((error = xcb_request_check(xcb_conn, cookie)))
-          printf("present pixmap failed");
+          printf("present pixmap failed\n");
 
   xcb_flush(xcb_conn);
-  printf("flushed\n");
-
-  sleep(1);
 
   if (prev_bo)
     gbm_surface_release_buffer(gbm_surface, prev_bo);
