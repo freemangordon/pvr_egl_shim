@@ -113,8 +113,10 @@ egl_shim_display_create_surface(EGLShimDisplay *dpy, EGLNativeWindowType win,
   xcb_get_geometry_reply_t *geom =
       xcb_get_geometry_reply(dpy->xcb_conn, cookie, NULL);
 
+  DEBUG("Creating gbm surface w=%d h=%d\n", geom->width, geom->height);
+
   surf->gbm_surface =
-      gbm_surface_create(dpy->gbm, geom->width, geom->height,format,
+      gbm_surface_create(dpy->gbm, geom->width, geom->height, format,
                          GBM_BO_USE_RENDERING | GBM_BO_USE_SCANOUT);
 
   free(geom);

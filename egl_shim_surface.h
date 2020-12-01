@@ -36,7 +36,6 @@ struct _EGLShimSurface
   EGLShimPixmapBufferList buffers;
   uint32_t buf_count;
   uint32_t lock_count;
-  Bool first_pixmap_presented;
 };
 
 EGLShimSurface *

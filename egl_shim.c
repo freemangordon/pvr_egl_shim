@@ -7,6 +7,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <string.h>
 
 #include "egl_shim_display.h"
 #include "egl_pixmap.h"
@@ -47,6 +48,8 @@ bpp_from_gbm_fourcc(uint32_t gbm_fourcc)
   return 0;
 }
 
+extern void *__libc_dlsym (void *, const char *);
+
 static void
 hook_egl_functions()
 {
@@ -63,6 +66,46 @@ hook_egl_functions()
   }
 }
 
+extern void * __libc_dlopen_mode(const char * filename, int flag);
+extern void * __libc_dlsym(void * handle, const char * symbol);
+
+void *
+dlsym(void * handle, const char * symbol)
+{
+    typedef void * (*PFN_DLSYM)(void *, const char *);
+    static PFN_DLSYM dlsym_ptr = NULL;
+
+    if (!dlsym_ptr)
+    {
+        void *libdl_handle = __libc_dlopen_mode("libdl.so.2",
+                                                RTLD_LOCAL | RTLD_NOW);
+
+        if (libdl_handle)
+            dlsym_ptr = (PFN_DLSYM)__libc_dlsym(libdl_handle, "dlsym");
+
+        if (!dlsym_ptr)
+        {
+            fprintf(stderr, "failed to look up real dlsym\n");
+            return NULL;
+        }
+    }
+
+
+    if (handle != RTLD_NEXT)
+    {
+      if (!strcmp(symbol, "eglGetDisplay"))
+        return eglGetDisplay;
+      else if (!strcmp(symbol, "eglGetConfigAttrib"))
+        return eglGetConfigAttrib;
+      else if(!strcmp(symbol, "eglCreateWindowSurface"))
+        return eglCreateWindowSurface;
+      else if (!strcmp(symbol, "eglSwapBuffers"))
+        return eglSwapBuffers;
+    }
+
+    return dlsym_ptr(handle, symbol);
+}
+
 EGLAPI EGLDisplay EGLAPIENTRY
 eglGetDisplay(EGLNativeDisplayType display_id)
 {
@@ -70,6 +113,9 @@ eglGetDisplay(EGLNativeDisplayType display_id)
   EGLDisplay egl_dpy;
 
   hook_egl_functions();
+
+  if (!display_id)
+    display_id = XOpenDisplay(NULL);
 
   dpy = egl_shim_display_create(display_id);
 
@@ -176,14 +222,14 @@ handle_special_event(EGLShimDisplay *dpy, EGLShimSurface *surf,
 
       assert(pb);
 
+      DEBUG("XCB_PRESENT_EVENT_IDLE_NOTIFY %d\n", ie->serial);
+
       if (pb->busy)
       {
         gbm_surface_release_buffer(surf->gbm_surface, pb->bo);
         pb->busy = False;
         surf->lock_count--;
       }
-
-      DEBUG("XCB_PRESENT_EVENT_IDLE_NOTIFY %d\n", ie->serial);
 
       break;
     }
@@ -241,10 +287,13 @@ eglSwapBuffers(EGLDisplay egl_dpy, EGLSurface surface)
   struct gbm_bo *bo;
   EGLPixmapBuffer *pb;
 
-  DEBUG("%s\n", __FUNCTION__);
+  DEBUG("\n%s\n", __FUNCTION__);
 
   if (!_eglSwapBuffers(egl_dpy, surface))
+  {
+    assert(0);
     return EGL_FALSE;
+  }
 
   dpy = egl_shim_display_find(egl_dpy);
   assert(dpy);
@@ -252,17 +301,17 @@ eglSwapBuffers(EGLDisplay egl_dpy, EGLSurface surface)
   surf = egl_shim_display_find_surface(dpy, surface);
   assert(surf);
 
+  poll_special_events(dpy, surf);
+
   bo = gbm_surface_lock_front_buffer(surf->gbm_surface);
+
   pb = gbm_bo_get_user_data(bo);
   surf->lock_count++;
 
-  if (surf->first_pixmap_presented)
+  while (surf->lock_count > 1)
   {
-    DEBUG("locked count %d\n", surf->lock_count);
-    poll_special_events(dpy, surf);
-
-    while (surf->lock_count > 1)
-      wait_special_event(dpy, surf);
+    DEBUG("No free buffers\n");
+    wait_special_event(dpy, surf);
   }
 
   if (!pb)
@@ -271,15 +320,8 @@ eglSwapBuffers(EGLDisplay egl_dpy, EGLSurface surface)
   assert(!pb->busy);
   DEBUG("locked %d\n", pb->serial);
 
-  if (!surf->first_pixmap_presented)
-  {
-    surf->first_pixmap_presented = True;
-    egl_pixmap_buffer_present(dpy, surf, pb);
-    wait_special_event(dpy, surf);
-  }
-
   pb->busy = True;
-  egl_pixmap_buffer_present(dpy, surf, pb);
+  egl_pixmap_buffer_present(dpy, surf, pb, XCB_PRESENT_OPTION_NONE);
 
   return EGL_TRUE;
 }

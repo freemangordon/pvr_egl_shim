@@ -40,6 +40,6 @@ egl_pixmap_buffer_create(EGLShimDisplay *dpy, EGLShimSurface *surf,
                          struct gbm_bo *bo);
 void
 egl_pixmap_buffer_present(EGLShimDisplay *dpy, EGLShimSurface *surf,
-                          EGLPixmapBuffer *pb);
+                          EGLPixmapBuffer *pb, uint32_t options);
 
 #endif // EGL_PIXMAP_H

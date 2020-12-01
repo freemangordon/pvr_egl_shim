@@ -76,22 +76,21 @@ egl_pixmap_buffer_create(EGLShimDisplay *dpy, EGLShimSurface *surf,
 
 void
 egl_pixmap_buffer_present(EGLShimDisplay *dpy, EGLShimSurface *surf,
-                          EGLPixmapBuffer *pb)
+                          EGLPixmapBuffer *pb, uint32_t options)
 {
   xcb_void_cookie_t cookie;
   xcb_generic_error_t *error;
-  uint32_t options = XCB_PRESENT_OPTION_ASYNC;
 
   cookie = xcb_present_pixmap_checked(dpy->xcb_conn, surf->drawable, pb->pixmap,
                                       pb->serial,
-                                      0, 0, 0, 0, // valid, update, x_off, y_off
+                                      None, None, 0, 0, // valid, update, x_off, y_off
                                       None, /* target_crtc */
                                       None, /* wait fence */
                                       None, /* idle fence */
                                       options,
                                       0,
-                                      surf->buf_count, /* divisor */
-                                      pb->serial, /* remainder */
+                                      0, /* divisor */
+                                      0, /* remainder */
                                       0, /* notifiers len */
                                       NULL); /* notifiers */
 
@@ -100,5 +99,5 @@ egl_pixmap_buffer_present(EGLShimDisplay *dpy, EGLShimSurface *surf,
 
   xcb_flush(dpy->xcb_conn);
 
-  //DEBUG("presented %dn", pb->serial);
+  DEBUG("presented %d\n", pb->serial);
 }
