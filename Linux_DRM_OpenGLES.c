@@ -34,6 +34,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <errno.h>
+#include <time.h>
 
 #include <xf86drm.h>
 #include <xf86drmMode.h>
@@ -52,6 +53,7 @@
 
 #define ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
+static int SHOW_FPS = 1;
 
 static struct {
 	EGLDisplay display;
@@ -502,18 +504,25 @@ static void draw(uint32_t i)
 {
   GLushort indices[] =
       { 0, 1, 2, 0, 2, 3 };
-  GLfloat vVertices[] = { -0.5f,  0.5f, 0.0f,  // Position 0
-                              0.0f,  0.0f,        // TexCoord 0
-                             -0.5f, -0.5f, 0.0f,  // Position 1
-                              0.0f,  1.0f,        // TexCoord 1
-                              0.5f, -0.5f, 0.0f,  // Position 2
-                              1.0f,  1.0f,        // TexCoord 2
-                              0.5f,  0.5f, 0.0f,  // Position 3
-                              1.0f,  0.0f         // TexCoord 3
+  GLfloat vVertices[] = {    -0.95f,  0.95f, 0.0f,  // Position 0
+                              0.0f,   0.0f,        // TexCoord 0
+                             -0.95f, -0.95f, 0.0f,  // Position 1
+                              0.0f,   1.0f,        // TexCoord 1
+                              0.95f, -0.95f, 0.0f,  // Position 2
+                              1.0f,   1.0f,        // TexCoord 2
+                              0.95f,  0.95f, 0.0f,  // Position 3
+                              1.0f,   0.0f         // TexCoord 3
   };
 
+  glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+  glClearColor(0.3f, (i%100) * .01, 0.5f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
-  glClearColor((i%100) * .01, 0.3f, 0.5f, 1.0f);
+
+  glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+  glClearColor(((i/2)%100) * .01, 0.3f, 0.5f, 1.0f);
+  glClear(GL_COLOR_BUFFER_BIT);
 
   // Use the program object
   glUseProgram(programObject);
@@ -582,6 +591,41 @@ static void page_flip_handler(int fd, unsigned int frame,
 {
 	int *waiting_for_flip = data;
 	*waiting_for_flip = 0;
+}
+
+static uint32_t TimeElapsedMs(const struct timespec *tStartTime,
+			      const struct timespec *tEndTime)
+{
+	return 1000 * (tEndTime->tv_sec - tStartTime->tv_sec) +
+		(tEndTime->tv_nsec - tStartTime->tv_nsec) / 1000000;
+}
+
+static void CalculateFrameRate()
+{
+	static float framesPerSecond    = 0.0f;       // This will store our fps
+	static struct timespec lastTime;
+	static struct timespec currentTime;
+	static int firstTime = 1;
+
+	clock_gettime(CLOCK_MONOTONIC, &currentTime);
+	if (firstTime) {
+		lastTime = currentTime;
+		firstTime = 0;
+	}
+
+	framesPerSecond++;
+
+	if (TimeElapsedMs(&lastTime, &currentTime) > 5000)
+	{
+		lastTime = currentTime;
+
+		if (SHOW_FPS == 1)  {
+			fprintf(stderr, "\nCurrent Frames Per Second: %d\n\n",
+				(int)(framesPerSecond / 5.0f));
+		}
+
+		framesPerSecond = 0;
+	}
 }
 
 int main(int argc, char *argv[])
@@ -673,6 +717,7 @@ int main(int argc, char *argv[])
 		/* release last buffer to render on again: */
 		gbm_surface_release_buffer(gbm.surface, bo);
 		bo = next_bo;
+		CalculateFrameRate();
 	}
 
 	return ret;
