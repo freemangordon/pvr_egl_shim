@@ -1,5 +1,5 @@
 /*
- * xcb_event.h
+ * glamor_test.h
  *
  * Copyright (C) 2020 Ivaylo Dimitrov <ivo.g.dimitrov.75@gmail.com>
  *
@@ -17,13 +17,40 @@
  *
  */
 
-#ifndef XCB_EVENT_H
-#define XCB_EVENT_H
+#ifndef GLAMOR_TEST_H
+#define GLAMOR_TEST_H
 
-#include <xcb/present.h>
+#define CMD_PIXMAP_CREATE '1'
+#define CMD_PIXMAP_PRESENT '2'
 
-xcb_special_event_t *
-xcb_event_init_special_event_queue(
-    xcb_connection_t *c, xcb_window_t window, uint32_t *special_ev_stamp);
+#define hexstrntoul(s) _hexstrntoul(s, sizeof(s))
 
-#endif // XCB_EVENT_H
+static inline uint32_t
+_hexstrntoul(const char *s, int nchars)
+{
+  char tmp[nchars + 1];
+
+  memcpy(tmp, s, nchars);
+  tmp[nchars] = 0;
+
+  return strtoul(tmp, NULL, 16);
+}
+
+struct msg
+{
+  char cmd;
+  union
+  {
+    struct
+    {
+      char id[8];
+      char fd[8];
+    } create;
+    struct
+    {
+      char id[8];
+    } present;
+  } u;
+};
+
+#endif // GLAMOR_TEST_H
