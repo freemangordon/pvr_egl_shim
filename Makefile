@@ -14,10 +14,10 @@ DRM_OPENGLES2_OBJS = Linux_DRM_OpenGLES.o
 
 GLAMOR_TEST_PACKAGES = libdrm glesv2 gbm egl
 GLAMOR_TEST_CFLAGS := $(shell pkg-config --cflags $(GLAMOR_TEST_PACKAGES)) \
-		      -Wall -Werror -g -fPIC
+		      -Wall -g -fPIC
 GLAMOR_TEST_LIBS := $(shell pkg-config --libs $(GLAMOR_TEST_PACKAGES))
-GLAMOR_TEST_SRV_OBJS = glamor_test_srv.o
-GLAMOR_TEST_CLI_OBJS = glamor_test_cli.o
+GLAMOR_TEST_SRV_OBJS = glamor_test_srv.o glamor_send_fd.o
+GLAMOR_TEST_CLI_OBJS = glamor_test_cli.o glamor_send_fd.o
 
 DEPS = list.h xcb_dri3.h xcb_event.h egl_shim_display.h \
 	egl_shim_surface.h egl_pixmap.h defs.h

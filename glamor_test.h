@@ -20,6 +20,11 @@
 #ifndef GLAMOR_TEST_H
 #define GLAMOR_TEST_H
 
+#include <stddef.h>
+#include <stdint.h>
+#include <string.h>
+#include <stdlib.h>
+
 #define CMD_PIXMAP_CREATE '1'
 #define CMD_PIXMAP_PRESENT '2'
 
@@ -44,7 +49,10 @@ struct msg
     struct
     {
       char id[8];
-      char fd[8];
+      char width[8];
+      char height[8];
+      char stride[8];
+      char format[8];
     } create;
     struct
     {
@@ -52,5 +60,12 @@ struct msg
     } present;
   } u;
 };
+
+#define SOCKET_NAME "glamor"
+
+ssize_t write_fd(int sock, void *buf, ssize_t buflen, int fd);
+ssize_t read_fd(int sock, void *buf, ssize_t bufsize, int *fd);
+int bind_named_socket(const char *filename);
+int connect_named_socket(const char *filename);
 
 #endif // GLAMOR_TEST_H

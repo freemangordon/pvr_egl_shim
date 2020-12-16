@@ -27,6 +27,7 @@
 #include <assert.h>
 #include <time.h>
 #include <unistd.h>
+#include <sys/ioctl.h>
 
 #include <gbm.h>
 
@@ -68,6 +69,8 @@ init_drm(void)
     return -1;
   }
 
+  fcntl(drm_fd, F_SETFD, fcntl(drm_fd, F_GETFD) | FD_CLOEXEC);
+
   return 0;
 }
 
@@ -77,8 +80,8 @@ init_gbm()
   gbm.dev = gbm_create_device(drm_fd);
 
   gbm.surface = gbm_surface_create(
-        gbm.dev, hdisplay, vdisplay, GBM_FORMAT_XRGB8888,
-        GBM_BO_USE_SCANOUT | GBM_BO_USE_RENDERING);
+        gbm.dev, hdisplay, vdisplay, GBM_FORMAT_ARGB8888,
+        GBM_BO_USE_RENDERING | GBM_BO_USE_SCANOUT);
 
   if (!gbm.surface)
   {
@@ -160,8 +163,9 @@ static int init_gl(void)
 static void
 draw(uint32_t i)
 {
-  glClearColor(0, (i % 100) * .01, 0.0f, 1.0f);
+  glClearColor(1, (i % 100) * .01, 0.0f, 1.0f);
   glClear(GL_COLOR_BUFFER_BIT);
+  glFinish();
 }
 
 static void
@@ -170,21 +174,30 @@ destroy_data(struct gbm_bo *bo, void *data)
   free(data);
 }
 
+int s;
+
 uint32_t *
 pixmap_create(struct gbm_bo *bo, uint32_t pixmap_id)
 {
-  int fd = gbm_bo_get_fd(bo);
   uint32_t *id = malloc(sizeof(*id));
   char buf[256];
+  int fd = gbm_bo_get_fd(bo);
 
   *id = pixmap_id;
   gbm_bo_set_user_data(bo, id, destroy_data);
 
-  printf("%c%08x%08x\n", CMD_PIXMAP_CREATE, pixmap_id, fd);
-  fflush(stdout);
-  close(fd);
+  sprintf(buf,
+         "%c%08x%08x%08x%08x%08x\n",
+         CMD_PIXMAP_CREATE,
+         pixmap_id,
+         gbm_bo_get_width(bo),
+         gbm_bo_get_height(bo),
+         gbm_bo_get_stride(bo),
+         gbm_bo_get_format(bo));
 
-  fgets(buf, sizeof(buf), stdin);
+  write_fd(s, buf, strlen(buf), fd);
+  read_fd(s, buf, sizeof(buf), NULL);
+
   fprintf(stderr, buf);
 
   return id;
@@ -193,9 +206,11 @@ pixmap_create(struct gbm_bo *bo, uint32_t pixmap_id)
 int
 pixmap_present(uint32_t id)
 {
-  printf("%c%08x\n", CMD_PIXMAP_PRESENT, id);
-  fflush(stdout);
+  char buf[256];
 
+  sprintf(buf, "%c%08x\n", CMD_PIXMAP_PRESENT, id);
+
+  write_fd(s, buf, strlen(buf), -1);
   return 0;
 }
 
@@ -251,8 +266,17 @@ main(int argc, char *argv[])
   struct gbm_bo *bo = NULL;
   struct gbm_bo *next_bo = NULL;
 
-  scanf("%u", &hdisplay);
-  scanf("%u", &vdisplay);
+  s = connect_named_socket(SOCKET_NAME);
+  if (s == -1)
+  {
+    fprintf(stderr, "failed to connect socket\n");
+    return -1;
+  }
+
+  fprintf(stderr, "client socket connected %d\n", s);
+
+  read_fd(s, &hdisplay, sizeof(hdisplay), NULL);
+  read_fd(s, &vdisplay, sizeof(vdisplay), NULL);
 
   if ((ret = init_drm()))
   {
@@ -286,14 +310,12 @@ main(int argc, char *argv[])
       id = pixmap_create(next_bo, pixmap_id++);
 
     pixmap_present(*id);
-    fgets(buf, sizeof(buf), stdin);
-    fprintf(stderr, buf);
+    read_fd(s, buf, sizeof(buf), NULL);
 
     if (bo)
       gbm_surface_release_buffer(gbm.surface, bo);
 
     bo = next_bo;
-
     CalculateFrameRate();
   }
 
